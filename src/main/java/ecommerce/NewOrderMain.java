@@ -10,6 +10,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Properties;
+import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 
 public class NewOrderMain {
@@ -17,37 +18,16 @@ public class NewOrderMain {
     private static final Logger log = LoggerFactory.getLogger(NewOrderMain.class);
 
     public static void main(String[] args) throws ExecutionException, InterruptedException {
-        var producer = new KafkaProducer<String, String>(properties());
-        var value = "123,1234";
-        var record = new ProducerRecord<>(TOPIC, value, value);
-        var email = "Thank you for your order! We are processing your order!";
-        var recordEmail = new ProducerRecord<>(EmailService.TOPIC, email, email);
-        Callback callback = (data, ex) -> {
-            if (ex != null) {
-                ex.printStackTrace();
-                return;
-            }
-            log.info("Send Success: {} :: {} / {} / {} ", data.topic(), data.partition(), data.offset(), data.timestamp());
-        };
-
-        sendProducerEcommerce(record, producer, callback);
-        sendProducerEcommerce(recordEmail, producer, callback);
+        try (var kafkaDispatcher = new KafkaDispatcher()) {
+            var key = UUID.randomUUID().toString();
+            var value = key + "123,1234";
+            kafkaDispatcher.send(NewOrderMain.TOPIC, key, value);
+            var email = "Thank you for your order! We are processing your order!";
+            kafkaDispatcher.send(EmailService.TOPIC, key, email);
+        }
     }
 
     public static void sendProducerEcommerce(ProducerRecord<String, String> record, KafkaProducer<String, String> kafkaProducer, Callback callback) throws ExecutionException, InterruptedException {
         kafkaProducer.send(record, callback).get();
-    }
-
-    public static void sendProducerEmail(ProducerRecord<String, String> record, KafkaProducer<String, String> kafkaProducer, Callback callback) throws ExecutionException, InterruptedException {
-        kafkaProducer.send(record, callback).get();
-    }
-
-
-    private static Properties properties() {
-        var properties = new Properties();
-        properties.setProperty(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, KafkaProperties.LOCAL_HOST);
-        properties.setProperty(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
-        properties.setProperty(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
-        return properties;
     }
 }
